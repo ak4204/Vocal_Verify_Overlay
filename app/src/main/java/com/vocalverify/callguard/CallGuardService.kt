@@ -83,8 +83,7 @@ class CallGuardService : Service() {
     }
     private fun openSocket(session: CallSession) {
         val raw = getSharedPreferences("settings", MODE_PRIVATE).getString("endpoint", "") ?: ""
-        if (!raw.startsWith("wss://") || raw.contains("YOUR-HF-SPACE")) return
-        val endpoint = raw.trimEnd('/') + "/ws/telephony/${session.deviceId}"
+        val endpoint = ApiConfig.telephonyWebSocket(raw, session.deviceId) ?: return
         socket = HfTelephonySocket(endpoint) { verdict -> main.post { overlay?.update(verdict) } }.also { it.connect() }
     }
     private fun endSession() {

@@ -40,7 +40,7 @@ class MainActivity : ComponentActivity() {
             addView(TextView(context).apply { text = "VocalVerify\nCall Guard"; textSize = 29f; setTextColor(0xffffffff.toInt()) })
             addView(TextView(context).apply { text = "On-device overlay monitoring with a consented demo microphone stream."; textSize = 15f; setTextColor(0xffb8c0cc.toInt()); setPadding(0, 16, 0, 32) })
             val endpoint = EditText(context).apply {
-                hint = "wss://your-space.hf.space"; setTextColor(0xffffffff.toInt()); setHintTextColor(0xff8f9aa8.toInt())
+                hint = "https://your-server.example"; setTextColor(0xffffffff.toInt()); setHintTextColor(0xff8f9aa8.toInt())
                 setText(getSharedPreferences("settings", MODE_PRIVATE).getString("endpoint", "")); inputType = android.text.InputType.TYPE_TEXT_VARIATION_URI
             }
             addView(endpoint)

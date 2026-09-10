@@ -19,7 +19,7 @@ The caller number is also frequently redacted on modern Android versions, even w
 ## Configure and build
 
 1. Open this directory in Android Studio (JDK 17) and let it install the declared Gradle/Android SDK dependencies.
-2. In the app's `settings` shared preferences, set `endpoint` to the domain only, for example `wss://your-space.hf.space`. The service adds `/ws/telephony/{device_id}`.
+2. In the app, set the endpoint to your server origin, for example `https://green-dog.trycloudflare.com`, `wss://your-space.hf.space`, or `https://your-service.run.app`. The service safely converts `http(s)` to `ws(s)` and adds `/ws/telephony/{device_id}`. Do not enter the path twice.
 3. Install on a device, accept microphone/phone permissions, and enable “Display over other apps”.
 4. Start with either simulation button. For a real call-state demo, tap **Start call-state monitor**, place a call, then manually enable speakerphone.
 
