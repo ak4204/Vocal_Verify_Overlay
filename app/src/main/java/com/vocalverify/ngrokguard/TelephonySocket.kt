@@ -24,15 +24,12 @@ class TelephonySocket(private val url: String, private val callback: (Verdict) -
         runCatching {
             val body = JSONObject(text)
             val outcome = body.optString("outcomeCode", body.optString("outcome_code", "ANALYZING"))
-            val transcript = body.optString("transcript", body.optString("recognized_text", body.optString("text", "")))
-            val keywordWarning = KeywordSafetyGuard.warningFor(transcript)
             val state = when {
-                keywordWarning != null -> GuardState.KEYWORD_WARNING
                 outcome == "AI_IMPERSONATION" || outcome == "HIGH_RISK" -> GuardState.HIGH_RISK
                 outcome == "GENUINE" -> GuardState.GENUINE
                 else -> GuardState.ANALYZING
             }
-            callback(Verdict(state, outcome, body.optString("matchedTarget", ""), body.optDouble("confidence", 0.0), body.optDouble("syntheticScore", 0.0), keywordWarning))
+            callback(Verdict(state, outcome, body.optString("matchedTarget", ""), body.optDouble("confidence", 0.0), body.optDouble("syntheticScore", 0.0)))
         }
     }
 }

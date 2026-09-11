@@ -1,6 +1,6 @@
 package com.vocalverify.ngrokguard
 
-enum class GuardState { ANALYZING, HIGH_RISK, GENUINE, KEYWORD_WARNING, CONNECTION_ERROR }
+enum class GuardState { ANALYZING, HIGH_RISK, GENUINE, CONNECTION_ERROR }
 
 data class CallSession(
     val sessionId: String,

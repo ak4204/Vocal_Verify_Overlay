@@ -17,9 +17,7 @@ The JSON fields match the existing backend contract: `session_id`, `device_id`, 
 
 ## Sensitive-call warning
 
-`KeywordSafetyGuard` contains the local safety list: OTP, PIN, CVV, verification code, UPI, bank account, money transfer, password, screen share, and remote access. It displays a warning and haptic alert when the backend includes one of these optional response fields: `transcript`, `recognized_text`, or `text`.
-
-Raw PCM bytes do not contain readable words. To detect keywords strictly on-device, add a bundled offline speech-to-text model (for example Vosk/Whisper) and run it over the same microphone stream; that large speech model is intentionally not embedded in this APK. The current dashboard response schema does not return a transcript, so no server transcript will trigger the keyword list until the backend is configured to include it.
+The app does not perform local keyword detection or speech-to-text. It only sends PCM audio to the configured backend and renders that backend's verdict.
 
 ## Android constraint
 

@@ -45,7 +45,7 @@ class CallGuardService : Service() {
     }
     private fun demo() {
         begin("Demo caller")
-        main.postDelayed({ overlay?.update(Verdict(GuardState.KEYWORD_WARNING, warning = "Sensitive topic heard: OTP, money transfer. Never share OTP, PIN, CVV, passwords, or money.") ) }, 1_500)
+        main.postDelayed({ overlay?.update(Verdict(GuardState.HIGH_RISK, matchedTarget = "Demo vishing pattern", syntheticScore = 0.94)) }, 1_500)
     }
     private fun begin(caller: String) {
         if (session != null) return

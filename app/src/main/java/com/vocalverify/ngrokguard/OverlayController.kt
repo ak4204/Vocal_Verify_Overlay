@@ -39,11 +39,10 @@ class OverlayController(private val context: Context, private val onScan: () -> 
         when (verdict.state) {
             GuardState.HIGH_RISK -> apply(view, 0xff991b1b.toInt(), "🔴 VISHING ALERT: AI VOICE CLONE", "${verdict.matchedTarget.ifBlank { "High-risk voice pattern" }} · Synthetic risk ${(verdict.syntheticScore * 100).roundToInt()}%")
             GuardState.GENUINE -> apply(view, 0xff065f46.toInt(), "🟢 VERIFIED GENUINE VOICE", "${verdict.matchedTarget.ifBlank { "Identity signal" }} · ${(verdict.confidence * 100).roundToInt()}% confidence")
-            GuardState.KEYWORD_WARNING -> apply(view, 0xff9a5b05.toInt(), "⚠️ SENSITIVE CALL WARNING", verdict.warning ?: "Never share OTP, PIN, CVV, passwords, or money.")
             GuardState.CONNECTION_ERROR -> apply(view, 0xff3f4b5f.toInt(), "⚠️ SERVER NOT CONNECTED", verdict.warning ?: "Check ngrok and endpoint.")
             GuardState.ANALYZING -> apply(view, 0xf20b111d.toInt(), "⌛ Analyzing Caller Voice…", verdict.warning ?: "Listening through speakerphone fallback")
         }
-        if (verdict.state == GuardState.HIGH_RISK || verdict.state == GuardState.KEYWORD_WARNING) context.getSystemService(Vibrator::class.java)?.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 160, 90, 240), -1))
+        if (verdict.state == GuardState.HIGH_RISK) context.getSystemService(Vibrator::class.java)?.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 160, 90, 240), -1))
     }
     fun hide() { root?.let { windows.removeView(it); root = null } }
     private fun apply(view: LinearLayout, color: Int, headline: String, message: String) { view.background = card(color, 20, 0x55ffffff); title.text = headline; title.setTextColor(Color.WHITE); body.text = message }
