@@ -6,13 +6,16 @@ import okhttp3.*
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
-class TelephonySocket(private val url: String, private val callback: (Verdict) -> Unit) : WebSocketListener() {
+class TelephonySocket(
+    private val url: String,
+    private val onConnected: () -> Unit = {},
+    private val callback: (Verdict) -> Unit
+) : WebSocketListener() {
     private val client = OkHttpClient.Builder().pingInterval(20, TimeUnit.SECONDS).build()
     private var socket: WebSocket? = null
 
     fun connect() {
         try {
-            // Ensure http/https scheme so OkHttp Request.Builder does not throw IllegalArgumentException
             val safeUrl = when {
                 url.startsWith("wss://", ignoreCase = true) -> "https://" + url.substring(6)
                 url.startsWith("ws://", ignoreCase = true) -> "http://" + url.substring(5)
@@ -21,6 +24,7 @@ class TelephonySocket(private val url: String, private val callback: (Verdict) -
             val request = Request.Builder()
                 .url(safeUrl)
                 .addHeader("ngrok-skip-browser-warning", "true")
+                .addHeader("User-Agent", "VocalVerify-Android/1.0")
                 .build()
             socket = client.newWebSocket(request, this)
         } catch (e: Throwable) {
@@ -62,8 +66,10 @@ class TelephonySocket(private val url: String, private val callback: (Verdict) -
         }
     }
 
-    override fun onOpen(webSocket: WebSocket, response: Response) =
+    override fun onOpen(webSocket: WebSocket, response: Response) {
         callback(Verdict(state = GuardState.ANALYZING, warning = "Secure stream connected. Analyzing speakerphone audio..."))
+        onConnected()
+    }
 
     override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
         Log.e("TelephonySocket", "WebSocket failure", t)

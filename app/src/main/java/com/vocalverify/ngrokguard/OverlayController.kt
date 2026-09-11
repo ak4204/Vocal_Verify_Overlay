@@ -11,7 +11,11 @@ import android.view.*
 import android.widget.*
 import kotlin.math.roundToInt
 
-class OverlayController(private val context: Context, private val onScan: () -> Unit) {
+class OverlayController(
+    private val context: Context,
+    private val onScan: () -> Unit = {},
+    private val onClose: () -> Unit = {}
+) {
     private val windows = context.getSystemService(WindowManager::class.java)
     private var root: LinearLayout? = null
     private lateinit var title: TextView
@@ -35,7 +39,12 @@ class OverlayController(private val context: Context, private val onScan: () -> 
                 header.addView(text("VocalVerify Live Guard", 15f, Color.WHITE).apply { setOnTouchListener(drag()) }, LinearLayout.LayoutParams(0, -2, 1f))
                 status = text("Active", 13f, 0xff32d8a7.toInt())
                 header.addView(status)
-                header.addView(text("   ✕", 22f, 0xffd1dae5.toInt()).apply { setOnClickListener { hide() } })
+                header.addView(text("   ✕", 22f, 0xffd1dae5.toInt()).apply {
+                    setOnClickListener {
+                        hide()
+                        onClose()
+                    }
+                })
                 addView(header)
                 title = text("Analyzing Caller Voice...", 18f, 0xff8ec5ff.toInt()).apply { setPadding(0, dp(10), 0, dp(4)) }
                 addView(title)
@@ -43,7 +52,10 @@ class OverlayController(private val context: Context, private val onScan: () -> 
                 addView(callerMeta)
                 body = text("Listening through speakerphone fallback", 12f, 0xff8f9cab.toInt()).apply { setPadding(0, dp(4), 0, 0) }
                 addView(body)
-                addView(LinearLayout(context).apply { setPadding(0, dp(8), 0, 0); addView(text("Scan", 13f, 0xffc7e2ff.toInt()).apply { setOnClickListener { onScan() } }) })
+                addView(LinearLayout(context).apply {
+                    setPadding(0, dp(8), 0, 0)
+                    addView(text("Scan", 13f, 0xffc7e2ff.toInt()).apply { setOnClickListener { onScan() } })
+                })
             }
             windows.addView(root, params())
         } catch (e: Throwable) {

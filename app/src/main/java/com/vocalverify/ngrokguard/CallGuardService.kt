@@ -80,14 +80,8 @@ class CallGuardService : Service() {
     }
 
     private fun demo() {
-        begin("Demo caller")
-        main.postDelayed({
-            try {
-                overlay?.update(Verdict(GuardState.HIGH_RISK, matchedTarget = "Demo vishing pattern", syntheticScore = 0.94))
-            } catch (e: Throwable) {
-                Log.e("CallGuardService", "demo update failed", e)
-            }
-        }, 1_500)
+        finishCall()
+        begin("Demo caller (+91 98765 43210)")
     }
 
     private fun begin(caller: String) {
@@ -96,7 +90,20 @@ class CallGuardService : Service() {
         session = newSession
         try {
             if (Settings.canDrawOverlays(this)) {
-                overlay = OverlayController(this) { overlay?.update(Verdict()) }.also { it.show(newSession) }
+                overlay = OverlayController(
+                    context = this,
+                    onScan = {
+                        try {
+                            session?.let { sess ->
+                                val testPcm = ByteArray(48000)
+                                socket?.send(sess, testPcm)
+                            }
+                        } catch (e: Throwable) {
+                            Log.e("CallGuardService", "manual scan send error", e)
+                        }
+                    },
+                    onClose = { finishCall() }
+                ).also { it.show(newSession) }
             } else {
                 notificationManager().notify(3, alert("Overlay permission needed", "Enable Display over other apps to show Call Guard on calls."))
             }
@@ -110,7 +117,24 @@ class CallGuardService : Service() {
             if (endpoint == null) {
                 overlay?.update(Verdict(GuardState.CONNECTION_ERROR, warning = "No ngrok endpoint saved. Open Call Guard after this call to add it."))
             } else {
-                socket = TelephonySocket(endpoint) { verdict -> main.post { overlay?.update(verdict) } }.also { it.connect() }
+                socket = TelephonySocket(
+                    url = endpoint,
+                    onConnected = {
+                        main.post {
+                            try {
+                                session?.let { sess ->
+                                    val testAudio = ByteArray(48000)
+                                    socket?.send(sess, testAudio)
+                                }
+                            } catch (e: Throwable) {
+                                Log.e("CallGuardService", "Initial audio send failed", e)
+                            }
+                        }
+                    },
+                    callback = { verdict ->
+                        main.post { overlay?.update(verdict) }
+                    }
+                ).also { it.connect() }
             }
             microphone = AudioChunker(this) { pcm -> socket?.send(newSession, pcm) }.also { it.start() }
         } catch (e: Throwable) {
