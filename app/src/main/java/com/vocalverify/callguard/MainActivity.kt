@@ -1,4 +1,4 @@
-package com.vocalverify.callguard
+﻿package com.vocalverify.callguard
 
 import android.Manifest
 import android.content.Intent
@@ -38,17 +38,28 @@ class MainActivity : ComponentActivity() {
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; setPadding(pad, pad, pad, pad); setBackgroundColor(0xff0a0d14.toInt())
             addView(TextView(context).apply { text = "VocalVerify\nCall Guard"; textSize = 29f; setTextColor(0xffffffff.toInt()) })
-            addView(TextView(context).apply { text = "On-device overlay monitoring with a consented demo microphone stream."; textSize = 15f; setTextColor(0xffb8c0cc.toInt()); setPadding(0, 16, 0, 32) })
+            addView(TextView(context).apply { text = "On-device overlay monitoring with a real-time call & mic stream."; textSize = 15f; setTextColor(0xffb8c0cc.toInt()); setPadding(0, 16, 0, 24) })
+            
             val endpoint = EditText(context).apply {
-                hint = "https://your-server.example"; setTextColor(0xffffffff.toInt()); setHintTextColor(0xff8f9aa8.toInt())
-                setText(getSharedPreferences("settings", MODE_PRIVATE).getString("endpoint", "")); inputType = android.text.InputType.TYPE_TEXT_VARIATION_URI
+                hint = "https://xxxx.trycloudflare.com or http://10.0.2.2:8080"
+                setTextColor(0xffffffff.toInt())
+                setHintTextColor(0xff8f9aa8.toInt())
+                setText(getSharedPreferences("settings", MODE_PRIVATE).getString("endpoint", ""))
+                inputType = android.text.InputType.TYPE_TEXT_VARIATION_URI
             }
             addView(endpoint)
-            addView(button("Save Hugging Face endpoint") { getSharedPreferences("settings", MODE_PRIVATE).edit().putString("endpoint", endpoint.text.toString().trim()).apply() })
+            addView(button("Save Server Endpoint (Cloudflare / Localhost)") {
+                val url = endpoint.text.toString().trim()
+                getSharedPreferences("settings", MODE_PRIVATE).edit().putString("endpoint", url).apply()
+                Toast.makeText(context, if (url.isNotBlank()) "Endpoint saved: $url" else "Endpoint cleared", Toast.LENGTH_SHORT).show()
+            })
             addView(button("Simulate CEO Vishing Call") { startDemo("HIGH_RISK") })
             addView(button("Simulate Legitimate Executive Call") { startDemo("GENUINE") })
-            addView(button("Start call-state monitor") { ContextCompat.startForegroundService(this@MainActivity, Intent(this@MainActivity, CallGuardService::class.java).setAction(CallGuardService.ACTION_MONITOR)) })
-            addView(TextView(context).apply { text = "Important: Android does not grant third-party sideloaded apps access to the other party's cellular call audio. CAPTURE_AUDIO_OUTPUT is signature-only. The production path sends microphone/demo audio only after explicit consent."; textSize = 13f; setTextColor(0xff8f9aa8.toInt()); setPadding(0, 36, 0, 0) })
+            addView(button("Start call-state monitor") { 
+                ContextCompat.startForegroundService(this@MainActivity, Intent(this@MainActivity, CallGuardService::class.java).setAction(CallGuardService.ACTION_MONITOR))
+                Toast.makeText(context, "Call monitor started. Turn on speakerphone during calls.", Toast.LENGTH_SHORT).show()
+            })
+            addView(TextView(context).apply { text = "Important: Android sideloaded apps capture microphone audio with user consent. Turn on speakerphone during cellular calls for real-time live screening."; textSize = 13f; setTextColor(0xff8f9aa8.toInt()); setPadding(0, 28, 0, 0) })
         }
     }
 
@@ -57,7 +68,11 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startDemo(outcome: String) {
-        if (!Settings.canDrawOverlays(this)) { requestRequiredAccess(); return }
+        if (!Settings.canDrawOverlays(this)) { 
+            Toast.makeText(this, "Please grant 'Display over other apps' permission first", Toast.LENGTH_LONG).show()
+            requestRequiredAccess()
+            return 
+        }
         ContextCompat.startForegroundService(this, Intent(this, CallGuardService::class.java).apply {
             action = CallGuardService.ACTION_SIMULATE; putExtra(CallGuardService.EXTRA_OUTCOME, outcome)
         })
