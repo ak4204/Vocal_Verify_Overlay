@@ -1,28 +1,26 @@
-# VocalVerify Call Guard
+# VocalVerify Ngrok Call Guard
 
-An Android-native, sideloadable prototype for a floating real-time call-safety HUD. It is deliberately native Kotlin rather than Flutter/React Native because `TYPE_APPLICATION_OVERLAY`, call-state callbacks, and foreground-service lifecycle are Android platform features.
+Standalone Android app for the existing VocalVerify dashboard backend. It does **not** change the dashboard. Enter an ngrok HTTPS/WSS origin; the app sends 1.5-second, 16 kHz mono PCM-16 Base64 JSON frames to:
 
-## What is implemented
+```text
+wss://YOUR-NGROK-DOMAIN/ws/telephony/{device_id}
+```
 
-- An obsidian, draggable `TYPE_APPLICATION_OVERLAY` HUD with analyzing, high-risk, and genuine states; haptics; dismiss, scan, and details actions.
-- A persistent foreground monitor that responds to `OFFHOOK`/`IDLE` and can restart after boot.
-- A one-tap simulation panel: the CEO demo resolves to the crimson alert after two seconds; the executive demo resolves to the green verdict.
-- A 16 kHz / mono / PCM-16 microphone recorder, grouped into 1.5-second buffers, and a WebSocket message matching the requested payload schema.
-- A notification on connection: **Turn on Speakerphone for VocalVerify Live Scanning**.
+The JSON fields match the existing backend contract: `session_id`, `device_id`, `target_profile_id`, `telecom_metadata`, and `audio_payload.audio_bytes_base64`. It understands `ANALYZING`, `GENUINE`, `HIGH_RISK`, and `AI_IMPERSONATION` verdicts.
 
-## Important Android limitation
+## Run it
 
-An ordinary sideloaded app cannot capture the remote party's cellular-call audio. `CAPTURE_AUDIO_OUTPUT` is a signature/privileged permission and will not be granted to this APK. The only supported generic fallback is microphone capture with the user knowingly enabling speakerphone; that also picks up ambient audio and is not suitable for covert monitoring. The manifest intentionally does not request `CAPTURE_AUDIO_OUTPUT`.
+1. Build the project with the Android GitHub Actions workflow (copy the workflow from the old app if this will use the same repository) or Android Studio.
+2. Install the APK and grant Phone, Microphone, Notifications, and **Display over other apps** permissions.
+3. Enter `https://YOUR-NGROK-DOMAIN` or `wss://YOUR-NGROK-DOMAIN`, save it, and tap **Enable Call Guard**.
+4. On an active call, enable speakerphone. The floating HUD is created at the screen's top-right before network streaming starts.
 
-The caller number is also frequently redacted on modern Android versions, even with call-related permissions. Treat it as optional metadata.
+## Sensitive-call warning
 
-## Configure and build
+`KeywordSafetyGuard` contains the local safety list: OTP, PIN, CVV, verification code, UPI, bank account, money transfer, password, screen share, and remote access. It displays a warning and haptic alert when the backend includes one of these optional response fields: `transcript`, `recognized_text`, or `text`.
 
-1. Open this directory in Android Studio (JDK 17) and let it install the declared Gradle/Android SDK dependencies.
-2. In the app, set the endpoint to your server origin, for example `https://green-dog.trycloudflare.com`, `wss://your-space.hf.space`, or `https://your-service.run.app`. The service safely converts `http(s)` to `ws(s)` and adds `/ws/telephony/{device_id}`. Do not enter the path twice.
-3. Install on a device, accept microphone/phone permissions, and enable “Display over other apps”.
-4. Start with either simulation button. For a real call-state demo, tap **Start call-state monitor**, place a call, then manually enable speakerphone.
+Raw PCM bytes do not contain readable words. To detect keywords strictly on-device, add a bundled offline speech-to-text model (for example Vosk/Whisper) and run it over the same microphone stream; that large speech model is intentionally not embedded in this APK. The current dashboard response schema does not return a transcript, so no server transcript will trigger the keyword list until the backend is configured to include it.
 
-## Before any distribution
+## Android constraint
 
-Use clear in-app consent, disclose microphone transmission and retention, authenticate the WebSocket, avoid uploading phone numbers unless necessary, add TLS certificate/pin and backend authorization, and obtain legal/privacy review for every jurisdiction where it will run.
+Normal sideloaded Android apps cannot capture the remote cellular-call audio stream. This app records only the device microphone, with clear notifications; speakerphone is required for the remote party to be audible. Use only with informed consent and applicable legal/privacy review.

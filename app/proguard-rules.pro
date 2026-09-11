@@ -1,1 +1,1 @@
-# Intentionally empty for the demo build.
+# Debug/demo app: no custom shrinking rules.
