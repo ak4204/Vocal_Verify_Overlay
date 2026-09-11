@@ -47,7 +47,7 @@ class TelephonySocket(
             val frame = JSONObject().apply {
                 put("session_id", session.sessionId)
                 put("device_id", session.deviceId)
-                put("target_profile_id", "cfo_sarah_jenkins")
+                put("target_profile_id", "caller_" + session.caller.replace("+", "").replace(" ", ""))
                 put("telecom_metadata", JSONObject().apply {
                     put("caller_number", session.caller)
                     put("call_direction", session.direction)
