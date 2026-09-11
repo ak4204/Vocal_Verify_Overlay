@@ -13,7 +13,7 @@ import kotlin.math.roundToInt
 class OverlayController(private val context: Context, private val onScan: () -> Unit) {
     private val windows = context.getSystemService(WindowManager::class.java)
     private var root: LinearLayout? = null
-    private lateinit var title: TextView; private lateinit var body: TextView; private lateinit var status: TextView
+    private lateinit var title: TextView; private lateinit var callerMeta: TextView; private lateinit var body: TextView; private lateinit var status: TextView
     private var positionX = 18; private var positionY = 72
 
     fun show(session: CallSession) {
@@ -24,27 +24,26 @@ class OverlayController(private val context: Context, private val onScan: () -> 
             orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(12), dp(14), dp(12)); background = card(0xf20b111d.toInt(), 20, 0x33ffffff); elevation = dp(16).toFloat()
             val header = LinearLayout(context).apply { gravity = Gravity.CENTER_VERTICAL }
             // Only the label is draggable, so the close and scan controls remain tappable.
-            header.addView(text("◇  VocalVerify Call Guard", 13f, Color.WHITE).apply { setOnTouchListener(drag()) }, LinearLayout.LayoutParams(0, -2, 1f))
-            status = text("● LIVE", 12f, 0xff32d8a7.toInt()); header.addView(status)
-            header.addView(text("  ×", 26f, 0xffd1dae5.toInt()).apply { setOnClickListener { hide() } })
+            header.addView(text("VocalVerify Live Guard", 15f, Color.WHITE).apply { setOnTouchListener(drag()) }, LinearLayout.LayoutParams(0, -2, 1f))
+            status = text("Active", 13f, 0xff32d8a7.toInt()); header.addView(status)
+            header.addView(text("   ×", 26f, 0xffd1dae5.toInt()).apply { setOnClickListener { hide() } })
             addView(header)
-            title = text("⌛ Analyzing Caller Voice…", 17f, 0xff8ec5ff.toInt()).apply { setPadding(0, dp(10), 0, dp(4)) }; addView(title)
-            body = text("CALLER NUMBER  •  ${session.caller}\nPCM 16 kHz · Speakerphone scan", 12f, 0xffb2bdca.toInt()).apply {
-                setPadding(0, dp(2), 0, 0)
-                setLineSpacing(dp(3).toFloat(), 1f)
-            }
+            title = text("Analyzing Caller Voice...", 18f, 0xff8ec5ff.toInt()).apply { setPadding(0, dp(10), 0, dp(4)) }; addView(title)
+            callerMeta = text("Caller: ${session.caller}  |  Codec: AMR-WB", 13f, 0xffb2bdca.toInt()).apply { setPadding(0, dp(2), 0, 0) }
+            addView(callerMeta)
+            body = text("Listening through speakerphone fallback", 12f, 0xff8f9cab.toInt()).apply { setPadding(0, dp(4), 0, 0) }
             addView(body)
-            addView(LinearLayout(context).apply { setPadding(0, dp(8), 0, 0); addView(text("↻ Scan again", 12f, 0xffc7e2ff.toInt()).apply { setOnClickListener { onScan() } }) })
+            addView(LinearLayout(context).apply { setPadding(0, dp(8), 0, 0); addView(text("Scan", 13f, 0xffc7e2ff.toInt()).apply { setOnClickListener { onScan() } }) })
         }
         windows.addView(root, params())
     }
     fun update(verdict: Verdict) {
         val view = root ?: return
         when (verdict.state) {
-            GuardState.HIGH_RISK -> apply(view, 0xff991b1b.toInt(), "🔴 VISHING ALERT: AI VOICE CLONE", "${verdict.matchedTarget.ifBlank { "High-risk voice pattern" }} · Synthetic risk ${(verdict.syntheticScore * 100).roundToInt()}%")
-            GuardState.GENUINE -> apply(view, 0xff065f46.toInt(), "🟢 VERIFIED GENUINE VOICE", "${verdict.matchedTarget.ifBlank { "Identity signal" }} · ${(verdict.confidence * 100).roundToInt()}% confidence")
-            GuardState.CONNECTION_ERROR -> apply(view, 0xff3f4b5f.toInt(), "⚠️ SERVER NOT CONNECTED", verdict.warning ?: "Check ngrok and endpoint.")
-            GuardState.ANALYZING -> apply(view, 0xf20b111d.toInt(), "⌛ Analyzing Caller Voice…", verdict.warning ?: "Listening through speakerphone fallback")
+            GuardState.HIGH_RISK -> apply(view, 0xff991b1b.toInt(), "VISHING ALERT: AI VOICE CLONE", "${verdict.matchedTarget.ifBlank { "High-risk voice pattern" }} · Synthetic risk ${(verdict.syntheticScore * 100).roundToInt()}%")
+            GuardState.GENUINE -> apply(view, 0xff065f46.toInt(), "VERIFIED GENUINE VOICE", "${verdict.matchedTarget.ifBlank { "Identity signal" }} · ${(verdict.confidence * 100).roundToInt()}% confidence")
+            GuardState.CONNECTION_ERROR -> apply(view, 0xff3f4b5f.toInt(), "SERVER NOT CONNECTED", verdict.warning ?: "Check ngrok and endpoint.")
+            GuardState.ANALYZING -> apply(view, 0xf20b111d.toInt(), "Analyzing Caller Voice...", verdict.warning ?: "Listening through speakerphone fallback")
         }
         if (verdict.state == GuardState.HIGH_RISK) context.getSystemService(Vibrator::class.java)?.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 160, 90, 240), -1))
     }
