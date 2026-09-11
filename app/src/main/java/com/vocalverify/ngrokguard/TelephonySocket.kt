@@ -1,6 +1,7 @@
 package com.vocalverify.ngrokguard
 
 import android.util.Base64
+import android.util.Log
 import okhttp3.*
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
@@ -8,18 +9,67 @@ import java.util.concurrent.TimeUnit
 class TelephonySocket(private val url: String, private val callback: (Verdict) -> Unit) : WebSocketListener() {
     private val client = OkHttpClient.Builder().pingInterval(20, TimeUnit.SECONDS).build()
     private var socket: WebSocket? = null
-    fun connect() { socket = client.newWebSocket(Request.Builder().url(url).build(), this) }
-    fun close() { socket?.close(1000, "call ended"); client.dispatcher.executorService.shutdown() }
-    fun send(session: CallSession, pcm: ByteArray) {
-        val frame = JSONObject().apply {
-            put("session_id", session.sessionId); put("device_id", session.deviceId); put("target_profile_id", "cfo_sarah_jenkins")
-            put("telecom_metadata", JSONObject().apply { put("caller_number", session.caller); put("call_direction", session.direction); put("codec", session.codec); put("timestamp", System.currentTimeMillis() / 1000) })
-            put("audio_payload", JSONObject().apply { put("sample_rate", 16000); put("encoding", "PCM_16BIT"); put("audio_bytes_base64", Base64.encodeToString(pcm, Base64.NO_WRAP)) })
+
+    fun connect() {
+        try {
+            // Ensure http/https scheme so OkHttp Request.Builder does not throw IllegalArgumentException
+            val safeUrl = when {
+                url.startsWith("wss://", ignoreCase = true) -> "https://" + url.substring(6)
+                url.startsWith("ws://", ignoreCase = true) -> "http://" + url.substring(5)
+                else -> url
+            }
+            val request = Request.Builder()
+                .url(safeUrl)
+                .addHeader("ngrok-skip-browser-warning", "true")
+                .build()
+            socket = client.newWebSocket(request, this)
+        } catch (e: Throwable) {
+            Log.e("TelephonySocket", "WebSocket connect error", e)
+            callback(Verdict(state = GuardState.CONNECTION_ERROR, warning = "Connect error: ${e.localizedMessage ?: "Invalid URL"}"))
         }
-        socket?.send(frame.toString())
     }
-    override fun onOpen(webSocket: WebSocket, response: Response) = callback(Verdict(state = GuardState.ANALYZING, warning = "Secure stream connected. Analyzing speakerphone audio…"))
-    override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) = callback(Verdict(state = GuardState.CONNECTION_ERROR, warning = "Server connection failed. Check your ngrok link and keep the tunnel open."))
+
+    fun close() {
+        try {
+            socket?.close(1000, "call ended")
+            client.dispatcher.executorService.shutdown()
+        } catch (e: Exception) {
+            Log.e("TelephonySocket", "WebSocket close error", e)
+        }
+    }
+
+    fun send(session: CallSession, pcm: ByteArray) {
+        try {
+            val frame = JSONObject().apply {
+                put("session_id", session.sessionId)
+                put("device_id", session.deviceId)
+                put("target_profile_id", "cfo_sarah_jenkins")
+                put("telecom_metadata", JSONObject().apply {
+                    put("caller_number", session.caller)
+                    put("call_direction", session.direction)
+                    put("codec", session.codec)
+                    put("timestamp", System.currentTimeMillis() / 1000)
+                })
+                put("audio_payload", JSONObject().apply {
+                    put("sample_rate", 16000)
+                    put("encoding", "PCM_16BIT")
+                    put("audio_bytes_base64", Base64.encodeToString(pcm, Base64.NO_WRAP))
+                })
+            }
+            socket?.send(frame.toString())
+        } catch (e: Exception) {
+            Log.e("TelephonySocket", "WebSocket send error", e)
+        }
+    }
+
+    override fun onOpen(webSocket: WebSocket, response: Response) =
+        callback(Verdict(state = GuardState.ANALYZING, warning = "Secure stream connected. Analyzing speakerphone audio..."))
+
+    override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+        Log.e("TelephonySocket", "WebSocket failure", t)
+        callback(Verdict(state = GuardState.CONNECTION_ERROR, warning = "Server connection failed: ${t.localizedMessage ?: "Check ngrok link"}"))
+    }
+
     override fun onMessage(webSocket: WebSocket, text: String) {
         runCatching {
             val body = JSONObject(text)

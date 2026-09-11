@@ -61,10 +61,17 @@ class CallGuardService : Service() {
         if (Settings.canDrawOverlays(this)) overlay = OverlayController(this) { overlay?.update(Verdict()) }.also { it.show(newSession) }
         else notificationManager().notify(3, alert("Overlay permission needed", "Enable Display over other apps to show Call Guard on calls."))
         notificationManager().notify(2, alert("VocalVerify Live Scanning", "Turn on Speakerphone for VocalVerify Live Scanning"))
-        val endpoint = ApiConfig.telephonyWebSocket(getSharedPreferences("guard_settings", MODE_PRIVATE).getString("endpoint", "") ?: "", newSession.deviceId)
-        if (endpoint == null) overlay?.update(Verdict(GuardState.CONNECTION_ERROR, warning = "No ngrok endpoint saved. Open Call Guard after this call to add it."))
-        else socket = TelephonySocket(endpoint) { verdict -> main.post { overlay?.update(verdict) } }.also { it.connect() }
-        microphone = AudioChunker(this) { pcm -> socket?.send(newSession, pcm) }.also { it.start() }
+        try {
+            val endpoint = ApiConfig.telephonyWebSocket(getSharedPreferences("guard_settings", MODE_PRIVATE).getString("endpoint", "") ?: "", newSession.deviceId)
+            if (endpoint == null) {
+                overlay?.update(Verdict(GuardState.CONNECTION_ERROR, warning = "No ngrok endpoint saved. Open Call Guard after this call to add it."))
+            } else {
+                socket = TelephonySocket(endpoint) { verdict -> main.post { overlay?.update(verdict) } }.also { it.connect() }
+            }
+            microphone = AudioChunker(this) { pcm -> socket?.send(newSession, pcm) }.also { it.start() }
+        } catch (e: Throwable) {
+            overlay?.update(Verdict(GuardState.CONNECTION_ERROR, warning = "Guard startup failed: ${e.localizedMessage}"))
+        }
     }
     private fun finishCall() {
         microphone?.stop(); microphone = null; socket?.close(); socket = null; overlay?.hide(); overlay = null; session = null; notificationManager().cancel(2); notificationManager().cancel(3)
