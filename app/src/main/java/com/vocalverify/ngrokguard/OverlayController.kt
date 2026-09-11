@@ -29,7 +29,11 @@ class OverlayController(private val context: Context, private val onScan: () -> 
             header.addView(text("  ×", 26f, 0xffd1dae5.toInt()).apply { setOnClickListener { hide() } })
             addView(header)
             title = text("⌛ Analyzing Caller Voice…", 17f, 0xff8ec5ff.toInt()).apply { setPadding(0, dp(10), 0, dp(4)) }; addView(title)
-            body = text("Caller: ${session.caller} · Speakerphone scan", 12f, 0xffb2bdca.toInt()); addView(body)
+            body = text("CALLER NUMBER  •  ${session.caller}\nPCM 16 kHz · Speakerphone scan", 12f, 0xffb2bdca.toInt()).apply {
+                setPadding(0, dp(2), 0, 0)
+                setLineSpacing(dp(3).toFloat(), 1f)
+            }
+            addView(body)
             addView(LinearLayout(context).apply { setPadding(0, dp(8), 0, 0); addView(text("↻ Scan again", 12f, 0xffc7e2ff.toInt()).apply { setOnClickListener { onScan() } }) })
         }
         windows.addView(root, params())

@@ -24,6 +24,7 @@ class CallGuardService : Service() {
     private var socket: TelephonySocket? = null
     private var microphone: AudioChunker? = null
     private var session: CallSession? = null
+    private var incomingCallerNumber = "Number unavailable"
 
     override fun onCreate() { super.onCreate(); channels(); startForeground(1, serviceNotification("Monitoring calls")) }
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -36,8 +37,14 @@ class CallGuardService : Service() {
         listener = object : PhoneStateListener() {
             override fun onCallStateChanged(state: Int, incomingNumber: String?) {
                 when (state) {
-                    TelephonyManager.CALL_STATE_OFFHOOK -> begin(incomingNumber?.ifBlank { "Active call" } ?: "Active call")
-                    TelephonyManager.CALL_STATE_IDLE -> finishCall()
+                    TelephonyManager.CALL_STATE_RINGING -> {
+                        incomingCallerNumber = incomingNumber?.takeIf { it.isNotBlank() } ?: "Number unavailable"
+                    }
+                    TelephonyManager.CALL_STATE_OFFHOOK -> begin(incomingNumber?.takeIf { it.isNotBlank() } ?: incomingCallerNumber)
+                    TelephonyManager.CALL_STATE_IDLE -> {
+                        finishCall()
+                        incomingCallerNumber = "Number unavailable"
+                    }
                 }
             }
         }
