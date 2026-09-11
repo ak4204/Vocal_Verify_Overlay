@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
 import android.text.InputType
+import android.util.Log
 import android.view.Gravity
 import android.view.View
 import android.widget.*
@@ -19,14 +20,21 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            Log.e("VocalVerify", "Uncaught exception on thread ${thread.name}", throwable)
+        }
         setContentView(screen())
         requestAccess()
     }
 
     private fun requestAccess() {
-        if (!Settings.canDrawOverlays(this)) startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
-        val missing = permissions.filter { ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED }
-        if (missing.isNotEmpty()) ActivityCompat.requestPermissions(this, missing.toTypedArray(), 44)
+        try {
+            if (!Settings.canDrawOverlays(this)) startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
+            val missing = permissions.filter { ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED }
+            if (missing.isNotEmpty()) ActivityCompat.requestPermissions(this, missing.toTypedArray(), 44)
+        } catch (e: Throwable) {
+            Log.e("MainActivity", "requestAccess error", e)
+        }
     }
 
     private fun screen(): View {
@@ -34,22 +42,38 @@ class MainActivity : ComponentActivity() {
         val pad = (22 * density).toInt()
         val prefs = getSharedPreferences("guard_settings", MODE_PRIVATE)
         return LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL; setPadding(pad, pad, pad, pad); setBackgroundColor(0xff091018.toInt())
-            addView(label("◈ VocalVerify\nCall Guard", 29f, 0xffffffff.toInt()))
-            addView(label("Live speakerphone safety scan · ngrok compatible", 15f, 0xff9fb0c0.toInt()).apply { setPadding(0, 10, 0, 26) })
+            orientation = LinearLayout.VERTICAL
+            setPadding(pad, pad, pad, pad)
+            setBackgroundColor(0xff091018.toInt())
+            addView(label("🛡️ VocalVerify\nCall Guard", 29f, 0xffffffff.toInt()))
+            addView(label("Live speakerphone safety scan • ngrok compatible", 15f, 0xff9fb0c0.toInt()).apply { setPadding(0, 10, 0, 26) })
             val endpoint = EditText(context).apply {
-                hint = "https://your-tunnel.ngrok-free.app"; inputType = InputType.TYPE_TEXT_VARIATION_URI
-                setText(prefs.getString("endpoint", "")); setTextColor(0xffffffff.toInt()); setHintTextColor(0xff718096.toInt())
+                hint = "https://your-tunnel.ngrok-free.app"
+                inputType = InputType.TYPE_TEXT_VARIATION_URI
+                setText(prefs.getString("endpoint", ""))
+                setTextColor(0xffffffff.toInt())
+                setHintTextColor(0xff718096.toInt())
             }
             addView(endpoint)
-            addView(button("Save ngrok endpoint") { prefs.edit().putString("endpoint", endpoint.text.toString().trim()).apply(); toast("Endpoint saved") })
+            addView(button("Save ngrok endpoint") {
+                prefs.edit().putString("endpoint", endpoint.text.toString().trim()).apply()
+                toast("Endpoint saved")
+            })
             addView(button("Enable Call Guard") {
-                ContextCompat.startForegroundService(this@MainActivity, Intent(this@MainActivity, CallGuardService::class.java).setAction(CallGuardService.ACTION_MONITOR))
-                toast("Call Guard is monitoring. The overlay appears once a call connects.")
+                try {
+                    ContextCompat.startForegroundService(this@MainActivity, Intent(this@MainActivity, CallGuardService::class.java).setAction(CallGuardService.ACTION_MONITOR))
+                    toast("Call Guard is monitoring. The overlay appears once a call connects.")
+                } catch (e: Throwable) {
+                    toast("Could not start monitoring: ${e.localizedMessage}")
+                }
             })
             addView(button("Test top-right overlay") {
                 if (!Settings.canDrawOverlays(this@MainActivity)) { requestAccess(); return@button }
-                ContextCompat.startForegroundService(this@MainActivity, Intent(this@MainActivity, CallGuardService::class.java).setAction(CallGuardService.ACTION_DEMO))
+                try {
+                    ContextCompat.startForegroundService(this@MainActivity, Intent(this@MainActivity, CallGuardService::class.java).setAction(CallGuardService.ACTION_DEMO))
+                } catch (e: Throwable) {
+                    toast("Could not launch demo: ${e.localizedMessage}")
+                }
             })
             addView(label("For real calls: switch on speakerphone. Android does not allow a normal sideloaded app to directly read the remote call-audio stream. This app sends consented microphone audio as 16 kHz PCM-16 frames.", 13f, 0xff8e9eae.toInt()).apply { setPadding(0, 28, 0, 0) })
         }

@@ -2,10 +2,12 @@ package com.vocalverify.ngrokguard
 
 import android.app.*
 import android.content.*
+import android.content.pm.ServiceInfo
 import android.os.*
 import android.provider.Settings
 import android.telephony.PhoneStateListener
 import android.telephony.TelephonyManager
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import java.util.UUID
@@ -26,41 +28,83 @@ class CallGuardService : Service() {
     private var session: CallSession? = null
     private var incomingCallerNumber = "Number unavailable"
 
-    override fun onCreate() { super.onCreate(); channels(); startForeground(1, serviceNotification("Monitoring calls")) }
+    override fun onCreate() {
+        super.onCreate()
+        channels()
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(1, serviceNotification("Monitoring calls"), ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
+            } else {
+                startForeground(1, serviceNotification("Monitoring calls"))
+            }
+        } catch (e: Throwable) {
+            try {
+                startForeground(1, serviceNotification("Monitoring calls"))
+            } catch (t: Throwable) {
+                Log.e("CallGuardService", "startForeground failed", t)
+            }
+        }
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        when (intent?.action) { ACTION_MONITOR -> monitor(); ACTION_DEMO -> demo() }
+        when (intent?.action) {
+            ACTION_MONITOR -> monitor()
+            ACTION_DEMO -> demo()
+        }
         return START_STICKY
     }
-    @Suppress("DEPRECATION") private fun monitor() {
+
+    @Suppress("DEPRECATION")
+    private fun monitor() {
         if (listener != null) return
-        manager = getSystemService(TelephonyManager::class.java)
-        listener = object : PhoneStateListener() {
-            override fun onCallStateChanged(state: Int, incomingNumber: String?) {
-                when (state) {
-                    TelephonyManager.CALL_STATE_RINGING -> {
-                        incomingCallerNumber = incomingNumber?.takeIf { it.isNotBlank() } ?: "Number unavailable"
-                    }
-                    TelephonyManager.CALL_STATE_OFFHOOK -> begin(incomingNumber?.takeIf { it.isNotBlank() } ?: incomingCallerNumber)
-                    TelephonyManager.CALL_STATE_IDLE -> {
-                        finishCall()
-                        incomingCallerNumber = "Number unavailable"
+        try {
+            manager = getSystemService(TelephonyManager::class.java)
+            listener = object : PhoneStateListener() {
+                override fun onCallStateChanged(state: Int, incomingNumber: String?) {
+                    when (state) {
+                        TelephonyManager.CALL_STATE_RINGING -> {
+                            incomingCallerNumber = incomingNumber?.takeIf { it.isNotBlank() } ?: "Number unavailable"
+                        }
+                        TelephonyManager.CALL_STATE_OFFHOOK -> begin(incomingNumber?.takeIf { it.isNotBlank() } ?: incomingCallerNumber)
+                        TelephonyManager.CALL_STATE_IDLE -> {
+                            finishCall()
+                            incomingCallerNumber = "Number unavailable"
+                        }
                     }
                 }
             }
+            manager?.listen(listener, PhoneStateListener.LISTEN_CALL_STATE)
+        } catch (e: Throwable) {
+            Log.e("CallGuardService", "monitor failed", e)
         }
-        manager?.listen(listener, PhoneStateListener.LISTEN_CALL_STATE)
     }
+
     private fun demo() {
         begin("Demo caller")
-        main.postDelayed({ overlay?.update(Verdict(GuardState.HIGH_RISK, matchedTarget = "Demo vishing pattern", syntheticScore = 0.94)) }, 1_500)
+        main.postDelayed({
+            try {
+                overlay?.update(Verdict(GuardState.HIGH_RISK, matchedTarget = "Demo vishing pattern", syntheticScore = 0.94))
+            } catch (e: Throwable) {
+                Log.e("CallGuardService", "demo update failed", e)
+            }
+        }, 1_500)
     }
+
     private fun begin(caller: String) {
         if (session != null) return
         val newSession = CallSession("call_sess_${UUID.randomUUID().toString().take(10)}", deviceId(), caller)
         session = newSession
-        if (Settings.canDrawOverlays(this)) overlay = OverlayController(this) { overlay?.update(Verdict()) }.also { it.show(newSession) }
-        else notificationManager().notify(3, alert("Overlay permission needed", "Enable Display over other apps to show Call Guard on calls."))
-        notificationManager().notify(2, alert("VocalVerify Live Scanning", "Turn on Speakerphone for VocalVerify Live Scanning"))
+        try {
+            if (Settings.canDrawOverlays(this)) {
+                overlay = OverlayController(this) { overlay?.update(Verdict()) }.also { it.show(newSession) }
+            } else {
+                notificationManager().notify(3, alert("Overlay permission needed", "Enable Display over other apps to show Call Guard on calls."))
+            }
+            notificationManager().notify(2, alert("VocalVerify Live Scanning", "Turn on Speakerphone for VocalVerify Live Scanning"))
+        } catch (e: Throwable) {
+            Log.e("CallGuardService", "Overlay show error", e)
+        }
+
         try {
             val endpoint = ApiConfig.telephonyWebSocket(getSharedPreferences("guard_settings", MODE_PRIVATE).getString("endpoint", "") ?: "", newSession.deviceId)
             if (endpoint == null) {
@@ -70,23 +114,52 @@ class CallGuardService : Service() {
             }
             microphone = AudioChunker(this) { pcm -> socket?.send(newSession, pcm) }.also { it.start() }
         } catch (e: Throwable) {
+            Log.e("CallGuardService", "begin startup error", e)
             overlay?.update(Verdict(GuardState.CONNECTION_ERROR, warning = "Guard startup failed: ${e.localizedMessage}"))
         }
     }
+
     private fun finishCall() {
-        microphone?.stop(); microphone = null; socket?.close(); socket = null; overlay?.hide(); overlay = null; session = null; notificationManager().cancel(2); notificationManager().cancel(3)
+        try {
+            microphone?.stop()
+            microphone = null
+            socket?.close()
+            socket = null
+            overlay?.hide()
+            overlay = null
+            session = null
+            notificationManager().cancel(2)
+            notificationManager().cancel(3)
+        } catch (e: Throwable) {
+            Log.e("CallGuardService", "finishCall error", e)
+        }
     }
+
     private fun deviceId(): String {
         val p = getSharedPreferences("guard_settings", MODE_PRIVATE)
         return p.getString("device_id", null) ?: "usr_phone_${UUID.randomUUID().toString().take(8)}".also { p.edit().putString("device_id", it).apply() }
     }
+
     private fun channels() {
-        notificationManager().createNotificationChannel(NotificationChannel(SERVICE_CHANNEL, "Call Guard service", NotificationManager.IMPORTANCE_LOW))
-        notificationManager().createNotificationChannel(NotificationChannel(ALERT_CHANNEL, "Call Guard alerts", NotificationManager.IMPORTANCE_HIGH))
+        try {
+            notificationManager().createNotificationChannel(NotificationChannel(SERVICE_CHANNEL, "Call Guard service", NotificationManager.IMPORTANCE_LOW))
+            notificationManager().createNotificationChannel(NotificationChannel(ALERT_CHANNEL, "Call Guard alerts", NotificationManager.IMPORTANCE_HIGH))
+        } catch (e: Throwable) {
+            Log.e("CallGuardService", "channels error", e)
+        }
     }
+
     private fun serviceNotification(message: String) = NotificationCompat.Builder(this, SERVICE_CHANNEL).setSmallIcon(android.R.drawable.ic_lock_idle_lock).setContentTitle("VocalVerify Call Guard").setContentText(message).setOngoing(true).build()
     private fun alert(title: String, message: String) = NotificationCompat.Builder(this, ALERT_CHANNEL).setSmallIcon(android.R.drawable.ic_dialog_alert).setContentTitle(title).setContentText(message).setPriority(NotificationCompat.PRIORITY_HIGH).build()
     private fun notificationManager() = getSystemService(NotificationManager::class.java)
     override fun onBind(intent: Intent?) = null
-    override fun onDestroy() { listener?.let { manager?.listen(it, PhoneStateListener.LISTEN_NONE) }; finishCall(); super.onDestroy() }
+    override fun onDestroy() {
+        try {
+            listener?.let { manager?.listen(it, PhoneStateListener.LISTEN_NONE) }
+            finishCall()
+        } catch (e: Throwable) {
+            Log.e("CallGuardService", "onDestroy error", e)
+        }
+        super.onDestroy()
+    }
 }
