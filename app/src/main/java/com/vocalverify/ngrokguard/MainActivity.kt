@@ -59,6 +59,14 @@ class MainActivity : ComponentActivity() {
                 prefs.edit().putString("endpoint", endpoint.text.toString().trim()).apply()
                 toast("Endpoint saved")
             })
+            addView(button("Enable Call Audio (Accessibility)") {
+                try {
+                    startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                    toast("Please find 'VocalVerify Call Guard' and turn it ON to allow call recording.")
+                } catch (e: Throwable) {
+                    toast("Could not open settings: ${e.localizedMessage}")
+                }
+            })
             addView(button("Enable Call Guard") {
                 try {
                     ContextCompat.startForegroundService(this@MainActivity, Intent(this@MainActivity, CallGuardService::class.java).setAction(CallGuardService.ACTION_MONITOR))
