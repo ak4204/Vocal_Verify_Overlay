@@ -58,10 +58,25 @@ class AudioChunker(private val context: Context, private val onChunk: (ByteArray
                         offset += read
                     }
                     if (offset == block.size && active.get()) {
-                        try {
-                            onChunk(block.copyOf())
-                        } catch (e: Throwable) {
-                            Log.e("AudioChunker", "onChunk callback error", e)
+                        // VAD / Silence Filter
+                        var maxAmplitude = 0
+                        for (i in block.indices step 2) {
+                            if (i + 1 < block.size) {
+                                val sample = (block[i].toInt() and 0xFF) or (block[i + 1].toInt() shl 8)
+                                val amplitude = Math.abs(sample.toShort().toInt())
+                                if (amplitude > maxAmplitude) maxAmplitude = amplitude
+                            }
+                        }
+                        
+                        // Send data only if someone is speaking
+                        if (maxAmplitude > 100) {
+                            try {
+                                onChunk(block.copyOf())
+                            } catch (e: Throwable) {
+                                Log.e("AudioChunker", "onChunk callback error", e)
+                            }
+                        } else {
+                            Log.d("AudioChunker", "Silence detected, dropping chunk.")
                         }
                     }
                 }

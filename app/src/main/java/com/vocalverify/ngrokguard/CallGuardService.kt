@@ -136,6 +136,14 @@ class CallGuardService : Service() {
                     }
                 ).also { it.connect() }
             }
+            try {
+                val audioManager = getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+                audioManager.mode = android.media.AudioManager.MODE_IN_CALL
+                audioManager.isSpeakerphoneOn = true
+                Log.d("CallGuardService", "Speakerphone forcefully enabled")
+            } catch (e: Throwable) {
+                Log.e("CallGuardService", "Error enabling speakerphone", e)
+            }
             microphone = AudioChunker(this) { pcm -> socket?.send(newSession, pcm) }.also { it.start() }
         } catch (e: Throwable) {
             Log.e("CallGuardService", "begin startup error", e)
